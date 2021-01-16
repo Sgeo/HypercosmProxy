@@ -24,6 +24,7 @@ static real_NP_Shutdown: Lazy<Symbol<unsafe extern "stdcall" fn() -> NPError>> =
 type NPError = i16;
 
 type NPP_StreamAsFileProcPtr = unsafe extern "C" fn(*mut c_void, *mut c_void, *const c_char);
+type NPP_NewStreamProcPtr = unsafe extern "C" fn(*mut c_void, *mut c_char, &mut NPStream, u8, &mut u16) -> NPError;
 
 #[repr(C)]
 pub struct NPPluginFuncs {
@@ -32,7 +33,7 @@ pub struct NPPluginFuncs {
     newp: *mut c_void,
     destroy: *mut c_void,
     setwindow: *mut c_void,
-    newstream: *mut c_void,
+    newstream: NPP_NewStreamProcPtr,
     destroystream: *mut c_void,
     asfile: NPP_StreamAsFileProcPtr,
     writeready: *mut c_void,
@@ -50,6 +51,17 @@ pub struct NPPluginFuncs {
     getsiteswithdata: *mut c_void,
     didComposite: *mut c_void,
 
+}
+
+#[repr(C)]
+struct NPStream {
+    pdata: *mut c_void,
+    ndata: *mut c_void,
+    url: *const c_char,
+    end: u32,
+    lastmodified: u32,
+    notifyData: *mut c_void,
+    headers: *const c_char
 }
 
 extern "C" fn NPP_StreamAsFile(npp: *mut c_void, stream: *mut c_void, fname: *const c_char) {
