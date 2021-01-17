@@ -17,7 +17,7 @@ static real_NPP_Stream_As_File: Lazy<Mutex<Option<NPP_StreamAsFileProcPtr>>> = L
 
 static temp_files: Lazy<Mutex<Vec<NamedTempFile>>> = Lazy::new(|| Mutex::new(vec![]));
 
-static hypercosm: Lazy<Library> = Lazy::new(|| Library::new("xnphypercosm.dll").unwrap());
+static hypercosm: Lazy<Library> = Lazy::new(|| Library::new("XNPAxHyp.dll").unwrap());
 static real_NP_GetEntryPoints: Lazy<Symbol<unsafe extern "stdcall" fn(&mut NPPluginFuncs) -> NPError>> = Lazy::new(|| unsafe { hypercosm.get(b"NP_GetEntryPoints\0").unwrap() });
 static real_NP_Initialize: Lazy<Symbol<unsafe extern "stdcall" fn(&mut NPNetscapeFuncs) -> NPError>> = Lazy::new(|| unsafe { hypercosm.get(b"NP_Initialize\0").unwrap() });
 static real_NP_Shutdown: Lazy<Symbol<unsafe extern "stdcall" fn() -> NPError>> = Lazy::new(|| unsafe { hypercosm.get(b"NP_Shutdown\0").unwrap() });
@@ -156,7 +156,7 @@ pub extern "stdcall" fn NP_GetEntryPoints(plugin_funcs: &mut NPPluginFuncs) -> N
         let mut stream_as_file_lock = real_NPP_Stream_As_File.lock().unwrap();
         *stream_as_file_lock = Some(plugin_funcs.asfile);
         plugin_funcs.asfile = NPP_StreamAsFile;
-        
+
         return 0;
     }
 }
