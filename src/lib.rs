@@ -14,8 +14,6 @@ use libloading::Symbol;
 use tempfile::NamedTempFile;
 
 static real_NPP_Stream_As_File: Lazy<Mutex<Option<NPP_StreamAsFileProcPtr>>> = Lazy::new(|| Mutex::new(None));
-static real_NPP_NewStream: Lazy<Mutex<Option<NPP_NewStreamProcPtr>>> = Lazy::new(|| Mutex::new(None));
-static real_NPN_GetUrlNotify: Lazy<Mutex<Option<NPN_GetUrlNotifyProcPtr>>> = Lazy::new(|| Mutex::new(None));
 
 static temp_files: Lazy<Mutex<Vec<NamedTempFile>>> = Lazy::new(|| Mutex::new(vec![]));
 
@@ -28,9 +26,6 @@ static real_NP_Shutdown: Lazy<Symbol<unsafe extern "stdcall" fn() -> NPError>> =
 type NPError = i16;
 
 type NPP_StreamAsFileProcPtr = unsafe extern "C" fn(*mut c_void, *mut c_void, *const c_char);
-type NPP_NewStreamProcPtr = unsafe extern "C" fn(*mut c_void, *mut c_char, &mut NPStream, u8, &mut u16) -> NPError;
-
-type NPN_GetUrlNotifyProcPtr = unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, *mut c_void) -> NPError;
 
 #[repr(C)]
 pub struct NPPluginFuncs {
@@ -39,7 +34,7 @@ pub struct NPPluginFuncs {
     newp: *mut c_void,
     destroy: *mut c_void,
     setwindow: *mut c_void,
-    newstream: NPP_NewStreamProcPtr,
+    newstream: *mut c_void,
     destroystream: *mut c_void,
     asfile: NPP_StreamAsFileProcPtr,
     writeready: *mut c_void,
@@ -77,7 +72,7 @@ pub struct NPNetscapeFuncs {
     reloadplugins: *mut c_void,
     getJavaEnv: *mut c_void,
     getJavaPeer: *mut c_void,
-    geturlnotify: NPN_GetUrlNotifyProcPtr,
+    geturlnotify: *mut c_void,
     posturlnotify: *mut c_void,
     getvalue: *mut c_void,
     setvalue: *mut c_void,
@@ -135,25 +130,6 @@ struct NPStream {
     headers: *const c_char
 }
 
-extern "C" fn NPP_NewStream(npp: *mut c_void, mime: *mut c_char, stream: &mut NPStream, seekable: u8, mode: &mut u16) -> NPError {
-    let mut file = std::fs::OpenOptions::new().append(true).create(true).open("C:\\hypercosmlog.txt").unwrap();
-    unsafe {
-        let url = CStr::from_ptr(stream.url);
-        let mime_cstr = CStr::from_ptr(mime);
-        writeln!(&mut file, "Stream MIME type: {:?}", mime_cstr).unwrap();
-        writeln!(&mut file, "Stream URL: {:?}", url).unwrap();
-        writeln!(&mut file, "Stream notify: {:#?}", stream.notifyData);
-        
-        let real_NPP_NewStream_func = real_NPP_NewStream.lock().unwrap().unwrap();
-        let result = if url.to_str().unwrap() == "http://highprogrammer.com/alan/hypercosm/applets/airhockey/" {
-            1 // NPERR_GENERIC_ERROR
-        } else {
-            real_NPP_NewStream_func(npp, mime, stream, seekable, mode)
-        };
-        writeln!(&mut file, "Stream Mode: {:?}", *mode).unwrap();
-        result
-    }
-}
 
 extern "C" fn NPP_StreamAsFile(npp: *mut c_void, stream: *mut c_void, fname: *const c_char) {
     unsafe {
@@ -180,32 +156,16 @@ pub extern "stdcall" fn NP_GetEntryPoints(plugin_funcs: &mut NPPluginFuncs) -> N
         let mut stream_as_file_lock = real_NPP_Stream_As_File.lock().unwrap();
         *stream_as_file_lock = Some(plugin_funcs.asfile);
         plugin_funcs.asfile = NPP_StreamAsFile;
-
-        let mut newstream_lock = real_NPP_NewStream.lock().unwrap();
-        *newstream_lock = Some(plugin_funcs.newstream);
-        //plugin_funcs.newstream = NPP_NewStream;
+        
         return 0;
     }
 }
 
-pub extern "C" fn NPN_GetUrlNotify(instance: *mut c_void, url: *const c_char, window: *const c_char, notify_data: *mut c_void) -> NPError {
-    unsafe {
-        let mut file = std::fs::OpenOptions::new().append(true).create(true).open("C:\\hypercosmlog.txt").unwrap();
-        writeln!(&mut file, "NPN_GetUrlNotify on {}", CStr::from_ptr(url).to_str().unwrap());
-        let lock = real_NPN_GetUrlNotify.lock().unwrap();
-        let real_NPN_GetUrlNotify_func = lock.unwrap();
-        real_NPN_GetUrlNotify_func(instance, url, window, notify_data)
-    }
-}
+
 
 #[no_mangle]
 pub extern "stdcall" fn NP_Initialize(funcs: &mut NPNetscapeFuncs) -> NPError {
     unsafe {
-        {
-            let mut urlnotify_lock = real_NPN_GetUrlNotify.lock().unwrap();
-            *urlnotify_lock = Some(funcs.geturlnotify);
-            //funcs.geturlnotify = NPN_GetUrlNotify;
-        }
         real_NP_Initialize(funcs)
     }
 }
