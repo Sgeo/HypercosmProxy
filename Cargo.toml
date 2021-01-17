@@ -17,3 +17,4 @@ winres = "0.1.11"
 
 [lib]
 crate-type = ["cdylib"]
+name = "nphypercosmproxy"
